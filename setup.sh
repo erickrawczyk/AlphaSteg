@@ -145,6 +145,10 @@ if [ "$FFMPEG_INSTALLED" = false ]; then
             *)     MAC_ARCH="amd64" ;;
         esac
         FF_BASE="https://ffmpeg.martin-riedl.de/redirect/latest/macos/$MAC_ARCH/release"
+        # Apple Developer Team ID for "Developer ID Application: Martin Riedl".
+        # If he ever changes Apple accounts (e.g. individual -> organization),
+        # signature verification will fail closed and this pin must be updated.
+        FF_EXPECTED_TEAM_ID="KU3N25YGLU"
         for TOOL in ffmpeg ffprobe; do
             # Resolve the redirect to the versioned URL so we can fetch its .sha256.
             # Uses a 1-byte ranged GET: the server handles HEAD unreliably.
@@ -161,9 +165,24 @@ if [ "$FFMPEG_INSTALLED" = false ]; then
                 break
             fi
             unzip -o -q "$TMPDIR_FF/$TOOL.zip" -d "$TMPDIR_FF" || break
+            # Verify the Apple code signature and pin the developer's Team ID.
+            # Unlike the checksum, which is served same-origin with the binary,
+            # this chains to Apple's root CA, so a compromised download host
+            # cannot forge it.
+            if ! codesign --verify --strict "$TMPDIR_FF/$TOOL" 2>/dev/null; then
+                err "-> Apple code signature verification failed for $TOOL. Discarding download."
+                rm -f "$TMPDIR_FF/$TOOL"
+                break
+            fi
+            TEAM_ID="$(codesign -dv "$TMPDIR_FF/$TOOL" 2>&1 | sed -n 's/^TeamIdentifier=//p')"
+            if [ "$TEAM_ID" != "$FF_EXPECTED_TEAM_ID" ]; then
+                err "-> $TOOL is signed by an unexpected developer (TeamIdentifier=$TEAM_ID, expected $FF_EXPECTED_TEAM_ID). Discarding download."
+                rm -f "$TMPDIR_FF/$TOOL"
+                break
+            fi
         done
         if [ -f "$TMPDIR_FF/ffmpeg" ] && [ -f "$TMPDIR_FF/ffprobe" ]; then
-            ok "-> Checksums verified."
+            ok "-> Checksums and Apple code signatures verified."
         fi
     else
         # BtbN builds (linked from ffmpeg.org) are current and checksummed, but only
