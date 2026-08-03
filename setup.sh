@@ -123,35 +123,48 @@ if [ -x "$SCRIPT_DIR/ffmpeg" ]; then
     ok "-> Found local FFmpeg binaries in app folder."
 fi
 
-if [ "$FFMPEG_INSTALLED" = false ]; then
+if [ "$FFMPEG_INSTALLED" = false ] && [ "$OS" != "Darwin" ]; then
+    # On macOS we deliberately skip Homebrew here: `brew install ffmpeg` mutates
+    # global state (dozens of dependency formulae, possible upgrades of shared
+    # deps). A portable binary in the app folder has no side effects.
     info "-> FFmpeg was not detected. Attempting install via package manager..."
-    if [ "$OS" = "Darwin" ]; then
-        if command -v brew >/dev/null 2>&1 && brew install ffmpeg; then
-            FFMPEG_INSTALLED=true
-            ok "-> FFmpeg installed via Homebrew."
-        fi
-    else
-        if pkg_install ffmpeg 2>/dev/null; then
-            FFMPEG_INSTALLED=true
-            ok "-> FFmpeg installed via package manager."
-        fi
+    if pkg_install ffmpeg 2>/dev/null; then
+        FFMPEG_INSTALLED=true
+        ok "-> FFmpeg installed via package manager."
     fi
 fi
 
 if [ "$FFMPEG_INSTALLED" = false ]; then
-    info "-> Package manager install unavailable. Downloading portable static build..."
+    info "-> Downloading portable FFmpeg into the application folder..."
     TMPDIR_FF="$(mktemp -d)"
     if [ "$OS" = "Darwin" ]; then
-        # evermeet.cx provides static macOS builds (x86_64; runs on Apple Silicon via Rosetta)
-        if [ "$ARCH" = "arm64" ] && ! arch -x86_64 /usr/bin/true 2>/dev/null; then
-            info "-> Apple Silicon detected without Rosetta 2 (required for the x86_64 FFmpeg build)."
-            info "-> Installing Rosetta 2..."
-            softwareupdate --install-rosetta --agree-to-license || true
+        # ffmpeg.martin-riedl.de provides signed, natively-built (arm64 + Intel)
+        # macOS binaries with published SHA-256 checksums.
+        case "$ARCH" in
+            arm64) MAC_ARCH="arm64" ;;
+            *)     MAC_ARCH="amd64" ;;
+        esac
+        FF_BASE="https://ffmpeg.martin-riedl.de/redirect/latest/macos/$MAC_ARCH/release"
+        for TOOL in ffmpeg ffprobe; do
+            # Resolve the redirect to the versioned URL so we can fetch its .sha256.
+            # Uses a 1-byte ranged GET: the server handles HEAD unreliably.
+            TOOL_URL="$(curl -fsL --retry 2 -r 0-0 -o /dev/null -w '%{url_effective}' "$FF_BASE/$TOOL.zip" 2>/dev/null)" || TOOL_URL=""
+            if [ -z "$TOOL_URL" ] \
+                || ! download "$TOOL_URL" "$TMPDIR_FF/$TOOL.zip" \
+                || ! download "$TOOL_URL.sha256" "$TMPDIR_FF/$TOOL.zip.sha256"; then
+                err "-> Failed to download $TOOL."
+                break
+            fi
+            if ! (cd "$TMPDIR_FF" && shasum -a 256 -c "$TOOL.zip.sha256" >/dev/null 2>&1); then
+                err "-> Checksum verification failed for $TOOL.zip. Discarding download."
+                rm -f "$TMPDIR_FF/$TOOL.zip"
+                break
+            fi
+            unzip -o -q "$TMPDIR_FF/$TOOL.zip" -d "$TMPDIR_FF" || break
+        done
+        if [ -f "$TMPDIR_FF/ffmpeg" ] && [ -f "$TMPDIR_FF/ffprobe" ]; then
+            ok "-> Checksums verified."
         fi
-        download "https://evermeet.cx/ffmpeg/getrelease/zip" "$TMPDIR_FF/ffmpeg.zip" \
-            && download "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip" "$TMPDIR_FF/ffprobe.zip" \
-            && unzip -o -q "$TMPDIR_FF/ffmpeg.zip" -d "$TMPDIR_FF" \
-            && unzip -o -q "$TMPDIR_FF/ffprobe.zip" -d "$TMPDIR_FF"
     else
         # BtbN builds (linked from ffmpeg.org) are current and checksummed, but only
         # cover x86_64/arm64. johnvansickle.com covers older ARM/x86 architectures
