@@ -9,16 +9,33 @@
 
 ---
 
-## Installation & Setup (Windows)
+## Installation & Setup
 
-We have provided a fully automated installer for novice users. Setting up Python, virtual environments, and audio codecs takes just one double-click.
+We have provided fully automated installers for novice users. Setting up Python, virtual environments, and audio codecs takes just one double-click. Pick the installer for your operating system:
 
-### Quick Start:
+### Windows Quick Start:
 1. Download or extract the project folder.
-2. Double-click *install.bat* inside the root directory.
+2. Double-click *install-windows.bat* inside the root directory.
    - *Note: If Python is missing, the official installer will pop up. Make sure to check the **"Add Python to PATH"** checkbox before completing Python setup.*
    - *The installer will automatically download portable `ffmpeg` binaries and configure everything locally.*
-3. Once the installer finishes, double-click **`run.bat`** to start the app.
+3. Once the installer finishes, double-click **`run-windows.bat`** to start the app.
+4. The server will start, and your web browser will automatically open to `http://localhost:8000/`.
+
+### macOS Quick Start:
+1. Download or extract the project folder.
+2. Double-click *install-mac.command* inside the root directory.
+   - *Note: If macOS blocks the script on first launch, right-click `install-mac.command` and choose **Open**.*
+   - *Note: If Python is missing, the official installer will pop up. Simply complete the installer window and setup will continue automatically. (If Homebrew is installed, it will be used instead.)*
+   - *The installer will automatically download portable `ffmpeg` binaries and configure everything locally.*
+3. Once the installer finishes, double-click **`run-mac.command`** to start the app.
+4. The server will start, and your web browser will automatically open to `http://localhost:8000/`.
+
+### Linux Quick Start:
+1. Download or extract the project folder.
+2. Run `./install-linux.sh` from a terminal inside the root directory.
+   - *The installer checks for Python 3 and FFmpeg, installing them via your package manager (apt, dnf, pacman, or zypper) when possible.*
+   - *If a package manager install isn't possible, portable static `ffmpeg` binaries are downloaded into the application folder automatically.*
+3. Once the installer finishes, run **`./run-linux.sh`** to start the app.
 4. The server will start, and your web browser will automatically open to `http://localhost:8000/`.
 
 ---

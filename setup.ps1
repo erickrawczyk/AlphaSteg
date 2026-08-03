@@ -131,9 +131,9 @@ call .venv\Scripts\activate.bat
 python main.py
 pause
 "@
-$runBatchContent | Out-File -FilePath "$PSScriptRoot\run.bat" -Encoding ASCII
+$runBatchContent | Out-File -FilePath "$PSScriptRoot\run-windows.bat" -Encoding ASCII
 
 Write-Host ""
 Write-Host "===================================================" -ForegroundColor Green
-Write-Host "Installation Complete! Double-click 'run.bat' to start AlphaSteg." -ForegroundColor Green
+Write-Host "Installation Complete! Double-click 'run-windows.bat' to start AlphaSteg." -ForegroundColor Green
 Write-Host "===================================================" -ForegroundColor Green
