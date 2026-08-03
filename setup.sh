@@ -153,18 +153,44 @@ if [ "$FFMPEG_INSTALLED" = false ]; then
             && unzip -o -q "$TMPDIR_FF/ffmpeg.zip" -d "$TMPDIR_FF" \
             && unzip -o -q "$TMPDIR_FF/ffprobe.zip" -d "$TMPDIR_FF"
     else
+        # BtbN builds (linked from ffmpeg.org) are current and checksummed, but only
+        # cover x86_64/arm64. johnvansickle.com covers older ARM/x86 architectures
+        # but has not published new builds since 2024.
+        BTBN_BASE="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest"
+        FF_VERIFY=false
         case "$ARCH" in
-            x86_64)  FF_ARCH="amd64" ;;
-            aarch64) FF_ARCH="arm64" ;;
-            armv7l|armhf) FF_ARCH="armhf" ;;
-            i686|i386) FF_ARCH="i686" ;;
-            *) FF_ARCH="" ;;
+            x86_64)
+                FF_URL="$BTBN_BASE/ffmpeg-master-latest-linux64-gpl.tar.xz"
+                FF_VERIFY=true ;;
+            aarch64)
+                FF_URL="$BTBN_BASE/ffmpeg-master-latest-linuxarm64-gpl.tar.xz"
+                FF_VERIFY=true ;;
+            armv7l|armhf)
+                FF_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-armhf-static.tar.xz" ;;
+            i686|i386)
+                FF_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-i686-static.tar.xz" ;;
+            *)
+                FF_URL="" ;;
         esac
-        if [ -n "$FF_ARCH" ]; then
-            download "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${FF_ARCH}-static.tar.xz" "$TMPDIR_FF/ffmpeg.tar.xz" \
-                && tar -xJf "$TMPDIR_FF/ffmpeg.tar.xz" -C "$TMPDIR_FF" \
-                && find "$TMPDIR_FF" -mindepth 2 -type f -name "ffmpeg"  -exec mv {} "$TMPDIR_FF/ffmpeg"  \; \
-                && find "$TMPDIR_FF" -mindepth 2 -type f -name "ffprobe" -exec mv {} "$TMPDIR_FF/ffprobe" \;
+        if [ -n "$FF_URL" ]; then
+            FF_NAME="${FF_URL##*/}"
+            if download "$FF_URL" "$TMPDIR_FF/$FF_NAME"; then
+                # Verify BtbN downloads against their published SHA-256 checksums
+                if [ "$FF_VERIFY" = true ] && command -v sha256sum >/dev/null 2>&1 \
+                    && download "$BTBN_BASE/checksums.sha256" "$TMPDIR_FF/checksums.sha256"; then
+                    if (cd "$TMPDIR_FF" && grep " $FF_NAME\$" checksums.sha256 | sha256sum -c - >/dev/null 2>&1); then
+                        ok "-> Checksum verified."
+                    else
+                        err "-> Checksum verification failed for $FF_NAME. Discarding download."
+                        rm -f "$TMPDIR_FF/$FF_NAME"
+                    fi
+                fi
+                if [ -f "$TMPDIR_FF/$FF_NAME" ]; then
+                    tar -xJf "$TMPDIR_FF/$FF_NAME" -C "$TMPDIR_FF" \
+                        && find "$TMPDIR_FF" -mindepth 2 -type f -name "ffmpeg"  -exec mv {} "$TMPDIR_FF/ffmpeg"  \; \
+                        && find "$TMPDIR_FF" -mindepth 2 -type f -name "ffprobe" -exec mv {} "$TMPDIR_FF/ffprobe" \;
+                fi
+            fi
         else
             err "-> Unsupported architecture for static FFmpeg build: $ARCH"
         fi
